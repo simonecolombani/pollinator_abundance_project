@@ -63,3 +63,7 @@ run_tests: ## Run tests using unittest
 	@uv run python -m unittest tests/test_pollinator_abundance.py
 	@echo "Tests completed."
 
+run_server: ## Run tests using unittest
+	@echo "Running fastapi server..."
+	@uv run fastapi dev app/main.py
+

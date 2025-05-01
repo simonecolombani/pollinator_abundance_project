@@ -147,6 +147,7 @@ def pa_single_bee_roi_ca(event, context):
 
     return pa_value, pa_image, ns_image, ps_image
 
+
 @time_counter
 def lambda_bee(
         plantation_id,
@@ -194,22 +195,21 @@ def lambda_bee(
     return ns_name, pa_image, ns_image
 
 
-def pollinator_abundance_calculation():
+def pollinator_abundance_calculation(plantation_id=9827,
+                                     plantations_polygons_id=9773,
+                                     resolution="low",
+                                     ca_id=284085,
+                                     roi_id=284086,
+                                     override_bee=True,
+                                     how="local",
+                                     compute_pa_ns=True,
+                                     compute_only_msa=False):
     """Main function to calculate the Pollinator Abundance (PA) and Nectar Potential (NP) for a given plantation and ROI."""
     start_lt = time.time()
 
     dict_of_results = {}
 
     # Hardcoded inputs
-    plantation_id = 9827
-    plantations_polygons_id = 9773
-    resolution = "low"
-    ca_id = 284085
-    roi_id = 284086
-    override_bee = True
-    how = "local"
-    compute_pa_ns = True
-    compute_only_msa = False
 
     min_res, multicore = RESOLUTION_MAP.get(resolution, (200, 0))
 
