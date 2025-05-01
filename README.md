@@ -345,7 +345,7 @@ This will start the server on `http://localhost:8000` and you can access the API
 
 The server exposes the following API endpoints:
 
-- **`/calculate`**: This endpoint accepts a POST request with the following parameters:
+- **`api/v1/calculate`**: This endpoint accepts a POST request with the following parameters:
 - `plantation_id`: The ID of the plantation.
 - `plantation_polygons_id`: The ID of the plantation polygons of interest.
 - `resolution`: The requested resolution
