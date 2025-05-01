@@ -7,47 +7,49 @@ from pollinator_abundance.image_processing import (
 )
 from pollinator_abundance.math_v2 import image_to_clc_ns_v3
 from pollinator_abundance.reporting import create_image_for_reporting
+from pollinator_abundance.utils import time_counter
 
 
+@time_counter
 def kpi_elements_generation(
-    roi_id,
-    ca_id,
-    kpi,
-    result_values,
-    image_all,
-    mask_roi,
-    mask_ca,
-    ref_array,
-    palette,
-    units,
-    speed_factor,
-    max_val,
-    webp_img,
-    webp_report,
-    clc_values_roi,
-    clc_values_ca,
-    input_image_roi,
-    input_image_ca,
-    alignment_point_x,
-    alignment_point_y,
-    palette_min,
-    palette_max,
-    report_palette,
-    filename,
-    report_ext,
-    title_report,
-    title_bar,
-    width_km_ca,
-    height_km_ca,
-    width_km_roi,
-    height_km_roi,
-    bounding_box_roi,
-    site_pixel_polygons,
-    filename_report,
-    value_roi=None,
-    value_ca=None,
-    min_array_val=0,
-    cbar_digits=1,
+        roi_id,  # Not used
+        ca_id,  # Not used
+        kpi,
+        result_values,  # Not used
+        image_all,
+        mask_roi,
+        mask_ca,
+        ref_array,
+        palette,
+        units,
+        speed_factor,
+        max_val,
+        webp_img,
+        webp_report,
+        clc_values_roi,
+        clc_values_ca,
+        input_image_roi,
+        input_image_ca,
+        alignment_point_x,
+        alignment_point_y,
+        palette_min,
+        palette_max,
+        report_palette,
+        filename,  # Not used
+        report_ext,  # Not used
+        title_report,
+        title_bar,
+        width_km_ca,
+        height_km_ca,
+        width_km_roi,
+        height_km_roi,
+        bounding_box_roi,
+        site_pixel_polygons,
+        filename_report,
+        value_roi=None,
+        value_ca=None,
+        min_array_val=0,
+        cbar_digits=1,
 ):
     if kpi != "clc":
         if kpi in ["fa", "msa", "msa_lu_animals", "msa_lu_plants"]:

@@ -3,6 +3,7 @@ import json
 import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from functools import lru_cache
 from io import StringIO
 
 import numpy as np
@@ -32,6 +33,7 @@ from pollinator_abundance.reporting import (
     linear_gradient,
 )
 from pollinator_abundance.constants import CLC_VALUES, CLC_VALUES_CA, CLC_VALUES_ROI
+from pollinator_abundance.utils import time_counter
 
 RESOLUTION_MAP = {
     "super_res": (25, 0),
@@ -60,6 +62,12 @@ DATA_BEE_STR = """
     """.strip()
 
 
+@lru_cache(maxsize=None)
+def load_cached_image(file_name):
+    file_path = files(pollinator_abundance) / f"data/{file_name}"
+    return Image.fromarray(np.load(file_path))
+
+
 def parse_lambda_event(event):
     """
     This function parses to JSON the 'body' key of the 'event' object.
@@ -83,13 +91,9 @@ def pa_single_bee_roi_ca(event, context):
     ns_columns = event.get("ns_columns", NS_COLUMNS)
 
     # Read from data
-    path_to_image_roi_np = files(pollinator_abundance) / "data/image_roi.npy"
-    image_roi_np = np.load(path_to_image_roi_np)
-    image_roi = Image.fromarray(image_roi_np)
 
-    path_to_image_ca_np = files(pollinator_abundance) / "data/image_ca.npy"
-    image_ca_np = np.load(path_to_image_ca_np)
-    image_ca = Image.fromarray(image_ca_np)
+    image_roi = load_cached_image("image_roi.npy")
+    image_ca = load_cached_image("image_ca.npy")
 
     ns_bee = next((col for col in ns_columns if float(bee[col]) == 1), None)
 
@@ -143,23 +147,23 @@ def pa_single_bee_roi_ca(event, context):
 
     return pa_value, pa_image, ns_image, ps_image
 
-
+@time_counter
 def lambda_bee(
-    plantation_id,
-    bee,
-    clc_values_roi,
-    clc_values_ca,
-    roi,
-    ca,
-    ratio_x,
-    ratio_y,
-    min_res,
-    image_url_fa,
-    ns_columns=NS_COLUMNS,
-    multicore=0,
-    plantations_polygons_id=0,
-    override=True,
-    how="lambda",
+        plantation_id,
+        bee,
+        clc_values_roi,
+        clc_values_ca,
+        roi,
+        ca,
+        ratio_x,
+        ratio_y,
+        min_res,
+        image_url_fa,
+        ns_columns=NS_COLUMNS,
+        multicore=0,
+        plantations_polygons_id=0,
+        override=True,
+        how="lambda",
 ):
     print(f"Performing lambda_bee for bee {bee['SPECIES']}")
     lambda_payload = {
@@ -277,11 +281,13 @@ def pollinator_abundance_calculation():
         }
 
         # Get ROI and CA Images from saved data
-        path_to_np_image_roi = files(pollinator_abundance) / "data/np_image_roi.npy"
-        np_image_roi = Image.fromarray(np.load(path_to_np_image_roi))
+        # path_to_np_image_roi = files(pollinator_abundance) / "data/np_image_roi.npy"
+        # np_image_roi = Image.fromarray(np.load(path_to_np_image_roi))
+        np_image_roi = load_cached_image("np_image_roi.npy")
 
-        path_to_np_image_ca = files(pollinator_abundance) / "data/np_image_ca.npy"
-        np_image_ca = Image.fromarray(np.load(path_to_np_image_ca))
+        # = files(pollinator_abundance) / "data/np_image_ca.npy"
+        # np_image_ca = Image.fromarray(np.load(path_to_np_image_ca))
+        np_image_ca = load_cached_image("np_image_ca.npy")
 
         width_km_ca = 5.0
         height_km_ca = 5.0
@@ -354,295 +360,290 @@ def pollinator_abundance_calculation():
         dict_of_results["mask_roi_field"] = mask_roi_field
         dict_of_results["mask_ca"] = mask_ca
 
-        if not compute_only_msa:
-            try:
-                ### CLC
-                kpi_elements_generation(
-                    roi_id=roi["id"],
-                    ca_id=ca["id"],
-                    kpi="clc",
-                    result_values=None,
-                    image_all=image_all,
-                    mask_roi=mask_roi_field,
-                    mask_ca=mask_ca,
-                    ref_array=None,
-                    palette=None,
-                    report_palette=None,
-                    units="",
-                    palette_min=0,
-                    palette_max=100,
-                    clc_values_roi=None,
-                    clc_values_ca=None,
-                    input_image_roi=None,
-                    input_image_ca=None,
-                    alignment_point_x=None,
-                    alignment_point_y=None,
-                    speed_factor=None,
-                    max_val=None,
-                    webp_img=True,
-                    webp_report=True,
-                    filename="clc",
-                    title_report="Corine Land Cover",
-                    title_bar="CLC",
-                    width_km_ca=width_km_ca,
-                    height_km_ca=height_km_ca,
-                    width_km_roi=width_km_roi,
-                    height_km_roi=height_km_roi,
-                    bounding_box_roi=bounding_box_roi,
-                    site_pixel_polygons=site_pixel_polygons,
-                    filename_report="clc_report",
-                    report_ext="",
-                    value_roi=None,
-                    value_ca=None,
-                    min_array_val=0,
-                    cbar_digits=1,
-                )
-            except Exception as e:
-                raise e
+        kpi_elements_generation_params = []
 
-            mex = "Created CLC images"
-            print(mex)
+        if not compute_only_msa:
+            ### CLC
+            CLC_params = dict(
+                roi_id=roi["id"],
+                ca_id=ca["id"],
+                kpi="clc",
+                result_values=None,
+                image_all=image_all,
+                mask_roi=mask_roi_field,
+                mask_ca=mask_ca,
+                ref_array=None,
+                palette=None,
+                report_palette=None,
+                units="",
+                palette_min=0,
+                palette_max=100,
+                clc_values_roi=None,
+                clc_values_ca=None,
+                input_image_roi=None,
+                input_image_ca=None,
+                alignment_point_x=None,
+                alignment_point_y=None,
+                speed_factor=None,
+                max_val=None,
+                webp_img=True,
+                webp_report=True,
+                filename="clc",
+                title_report="Corine Land Cover",
+                title_bar="CLC",
+                width_km_ca=width_km_ca,
+                height_km_ca=height_km_ca,
+                width_km_roi=width_km_roi,
+                height_km_roi=height_km_roi,
+                bounding_box_roi=bounding_box_roi,
+                site_pixel_polygons=site_pixel_polygons,
+                filename_report="clc_report",
+                report_ext="",
+                value_roi=None,
+                value_ca=None,
+                min_array_val=0,
+                cbar_digits=1,
+            )
+
+            kpi_elements_generation_params.append(CLC_params)
 
             ### NECTAR POTENTIAL
 
-            try:
-                kpi_elements_generation(
-                    roi_id=roi["id"],
-                    ca_id=ca["id"],
-                    kpi="np",
-                    result_values=result_values,
-                    image_all=None,
-                    mask_roi=mask_roi_field,
-                    mask_ca=mask_ca,
-                    ref_array=array_pn,
-                    palette=PALETTE_PN,
-                    report_palette=linear_gradient(PALETTE_PN, n=256)[::-1],
-                    units="kg/ha/year",
-                    palette_min=0,
-                    palette_max=250,
-                    clc_values_roi=None,
-                    clc_values_ca=None,
-                    input_image_roi=None,
-                    input_image_ca=None,
-                    alignment_point_x=None,
-                    alignment_point_y=None,
-                    speed_factor=1,
-                    max_val=2,
-                    webp_img=False,
-                    webp_report=True,
-                    filename="np",
-                    title_report="Nectariferous Potential (NP)",
-                    title_bar="NP",
-                    width_km_ca=width_km_ca,
-                    height_km_ca=height_km_ca,
-                    width_km_roi=width_km_roi,
-                    height_km_roi=height_km_roi,
-                    bounding_box_roi=bounding_box_roi,
-                    site_pixel_polygons=site_pixel_polygons,
-                    filename_report="pn_report",
-                    report_ext="",
-                    value_roi=None,
-                    value_ca=None,
-                    min_array_val=0,
-                    cbar_digits=1,
-                )
-            except Exception as e:
-                raise e
+            nectar_potential_params = dict(
+                roi_id=roi["id"],
+                ca_id=ca["id"],
+                kpi="np",
+                result_values=result_values,
+                image_all=None,
+                mask_roi=mask_roi_field,
+                mask_ca=mask_ca,
+                ref_array=array_pn,
+                palette=PALETTE_PN,
+                report_palette=linear_gradient(PALETTE_PN, n=256)[::-1],
+                units="kg/ha/year",
+                palette_min=0,
+                palette_max=250,
+                clc_values_roi=None,
+                clc_values_ca=None,
+                input_image_roi=None,
+                input_image_ca=None,
+                alignment_point_x=None,
+                alignment_point_y=None,
+                speed_factor=1,
+                max_val=2,
+                webp_img=False,
+                webp_report=True,
+                filename="np",
+                title_report="Nectariferous Potential (NP)",
+                title_bar="NP",
+                width_km_ca=width_km_ca,
+                height_km_ca=height_km_ca,
+                width_km_roi=width_km_roi,
+                height_km_roi=height_km_roi,
+                bounding_box_roi=bounding_box_roi,
+                site_pixel_polygons=site_pixel_polygons,
+                filename_report="pn_report",
+                report_ext="",
+                value_roi=None,
+                value_ca=None,
+                min_array_val=0,
+                cbar_digits=1,
+            )
 
-            mex = "Created PN images"
-            print(mex)
+            kpi_elements_generation_params.append(nectar_potential_params)
 
             ### FLOWER AVAILABILITY
 
-            try:
-                image_url_fa = kpi_elements_generation(
-                    roi_id=roi["id"],
-                    ca_id=ca["id"],
-                    kpi="fa",
-                    result_values=result_values,
-                    image_all=None,
-                    mask_roi=mask_roi_field,
-                    mask_ca=mask_ca,
-                    ref_array=None,
-                    report_palette=linear_gradient(PALETTE_INPUT, n=256)[::-1],
-                    units="N",
-                    palette_min=0,
-                    palette_max=1,
-                    clc_values_roi=clc_values_roi,
-                    clc_values_ca=clc_values_ca,
-                    speed_factor=1,
-                    max_val=255,
-                    palette=PALETTE_INPUT,
-                    webp_img=False,
-                    webp_report=True,
-                    input_image_roi=np_image_roi,
-                    input_image_ca=np_image_ca,
-                    alignment_point_x=alignment_point_x,
-                    alignment_point_y=alignment_point_y,
-                    filename="fa",
-                    title_report="Pollinator Foraging Activity (FA)",
-                    title_bar="FA",
-                    width_km_ca=width_km_ca,
-                    height_km_ca=height_km_ca,
-                    width_km_roi=width_km_roi,
-                    height_km_roi=height_km_roi,
-                    bounding_box_roi=bounding_box_roi,
-                    site_pixel_polygons=site_pixel_polygons,
-                    filename_report="fa_report",
-                    report_ext=".webp",
-                    value_roi=None,
-                    value_ca=None,
-                    min_array_val=0,
-                    cbar_digits=1,
-                )
-            except Exception as e:
-                raise e
-
-            mex = "Created FA images"
-            print(mex)
+            flower_availability_params = dict(
+                roi_id=roi["id"],
+                ca_id=ca["id"],
+                kpi="fa",
+                result_values=result_values,
+                image_all=None,
+                mask_roi=mask_roi_field,
+                mask_ca=mask_ca,
+                ref_array=None,
+                report_palette=linear_gradient(PALETTE_INPUT, n=256)[::-1],
+                units="N",
+                palette_min=0,
+                palette_max=1,
+                clc_values_roi=clc_values_roi,
+                clc_values_ca=clc_values_ca,
+                speed_factor=1,
+                max_val=255,
+                palette=PALETTE_INPUT,
+                webp_img=False,
+                webp_report=True,
+                input_image_roi=np_image_roi,
+                input_image_ca=np_image_ca,
+                alignment_point_x=alignment_point_x,
+                alignment_point_y=alignment_point_y,
+                filename="fa",
+                title_report="Pollinator Foraging Activity (FA)",
+                title_bar="FA",
+                width_km_ca=width_km_ca,
+                height_km_ca=height_km_ca,
+                width_km_roi=width_km_roi,
+                height_km_roi=height_km_roi,
+                bounding_box_roi=bounding_box_roi,
+                site_pixel_polygons=site_pixel_polygons,
+                filename_report="fa_report",
+                report_ext=".webp",
+                value_roi=None,
+                value_ca=None,
+                min_array_val=0,
+                cbar_digits=1,
+            )
+            kpi_elements_generation_params.append(flower_availability_params)
 
         ### MSA (LU, all taxonomic groups)
 
-        try:
-            kpi_elements_generation(
-                roi_id=roi["id"],
-                ca_id=ca["id"],
-                kpi="msa",
-                result_values=result_values,
-                image_all=None,
-                mask_roi=mask_roi_field,
-                mask_ca=mask_ca,
-                ref_array=None,
-                report_palette=linear_gradient(PALETTE_BLACK_RED_GREEN, n=256)[::-1],
-                units="N",
-                palette_min=0,
-                palette_max=1,
-                clc_values_roi=clc_values_roi,
-                clc_values_ca=clc_values_ca,
-                speed_factor=1,
-                max_val=255,
-                palette=PALETTE_BLACK_RED_GREEN,
-                webp_img=True,
-                webp_report=True,
-                input_image_roi=np_image_roi,
-                input_image_ca=np_image_ca,
-                alignment_point_x=alignment_point_x,
-                alignment_point_y=alignment_point_y,
-                filename="msa",
-                title_report="Mean Species Abundance (MSA)",
-                title_bar="MSA",
-                width_km_ca=width_km_ca,
-                height_km_ca=height_km_ca,
-                width_km_roi=width_km_roi,
-                height_km_roi=height_km_roi,
-                bounding_box_roi=bounding_box_roi,
-                site_pixel_polygons=site_pixel_polygons,
-                filename_report="msa_report",
-                report_ext=".webp",
-                value_roi=None,
-                value_ca=None,
-                min_array_val=0,
-                cbar_digits=1,
-            )
-        except Exception as e:
-            raise e
-        mex = "Created MSA images"
-        print(mex)
+        msu_params = dict(
+            roi_id=roi["id"],
+            ca_id=ca["id"],
+            kpi="msa",
+            result_values=result_values,
+            image_all=None,
+            mask_roi=mask_roi_field,
+            mask_ca=mask_ca,
+            ref_array=None,
+            report_palette=linear_gradient(PALETTE_BLACK_RED_GREEN, n=256)[::-1],
+            units="N",
+            palette_min=0,
+            palette_max=1,
+            clc_values_roi=clc_values_roi,
+            clc_values_ca=clc_values_ca,
+            speed_factor=1,
+            max_val=255,
+            palette=PALETTE_BLACK_RED_GREEN,
+            webp_img=True,
+            webp_report=True,
+            input_image_roi=np_image_roi,
+            input_image_ca=np_image_ca,
+            alignment_point_x=alignment_point_x,
+            alignment_point_y=alignment_point_y,
+            filename="msa",
+            title_report="Mean Species Abundance (MSA)",
+            title_bar="MSA",
+            width_km_ca=width_km_ca,
+            height_km_ca=height_km_ca,
+            width_km_roi=width_km_roi,
+            height_km_roi=height_km_roi,
+            bounding_box_roi=bounding_box_roi,
+            site_pixel_polygons=site_pixel_polygons,
+            filename_report="msa_report",
+            report_ext=".webp",
+            value_roi=None,
+            value_ca=None,
+            min_array_val=0,
+            cbar_digits=1,
+        )
+
+        kpi_elements_generation_params.append(msu_params)
 
         ### MSA_LU_animals
-        try:
-            kpi_elements_generation(
-                roi_id=roi["id"],
-                ca_id=ca["id"],
-                kpi="msa_lu_animals",
-                result_values=result_values,
-                image_all=None,
-                mask_roi=mask_roi_field,
-                mask_ca=mask_ca,
-                ref_array=None,
-                report_palette=linear_gradient(PALETTE_BLACK_RED_GREEN, n=256)[::-1],
-                units="N",
-                palette_min=0,
-                palette_max=1,
-                clc_values_roi=clc_values_roi,
-                clc_values_ca=clc_values_ca,
-                speed_factor=1,
-                max_val=255,
-                palette=PALETTE_BLACK_RED_GREEN,
-                webp_img=True,
-                webp_report=True,
-                input_image_roi=np_image_roi,
-                input_image_ca=np_image_ca,
-                alignment_point_x=alignment_point_x,
-                alignment_point_y=alignment_point_y,
-                filename="msa_lu_animals",
-                title_report="Mean Species Abundance for Land Use (MSA_LU) - Animals",
-                title_bar="MSA_LU",
-                width_km_ca=width_km_ca,
-                height_km_ca=height_km_ca,
-                width_km_roi=width_km_roi,
-                height_km_roi=height_km_roi,
-                bounding_box_roi=bounding_box_roi,
-                site_pixel_polygons=site_pixel_polygons,
-                filename_report="msa_lu_animals_report",
-                report_ext=".webp",
-                value_roi=None,
-                value_ca=None,
-                min_array_val=0,
-                cbar_digits=1,
-            )
-        except Exception as e:
-            raise e
-        mex = "Created MSA_LU Animals images"
-        print(mex)
+
+        MSA_LU_animals_params = dict(
+            roi_id=roi["id"],
+            ca_id=ca["id"],
+            kpi="msa_lu_animals",
+            result_values=result_values,
+            image_all=None,
+            mask_roi=mask_roi_field,
+            mask_ca=mask_ca,
+            ref_array=None,
+            report_palette=linear_gradient(PALETTE_BLACK_RED_GREEN, n=256)[::-1],
+            units="N",
+            palette_min=0,
+            palette_max=1,
+            clc_values_roi=clc_values_roi,
+            clc_values_ca=clc_values_ca,
+            speed_factor=1,
+            max_val=255,
+            palette=PALETTE_BLACK_RED_GREEN,
+            webp_img=True,
+            webp_report=True,
+            input_image_roi=np_image_roi,
+            input_image_ca=np_image_ca,
+            alignment_point_x=alignment_point_x,
+            alignment_point_y=alignment_point_y,
+            filename="msa_lu_animals",
+            title_report="Mean Species Abundance for Land Use (MSA_LU) - Animals",
+            title_bar="MSA_LU",
+            width_km_ca=width_km_ca,
+            height_km_ca=height_km_ca,
+            width_km_roi=width_km_roi,
+            height_km_roi=height_km_roi,
+            bounding_box_roi=bounding_box_roi,
+            site_pixel_polygons=site_pixel_polygons,
+            filename_report="msa_lu_animals_report",
+            report_ext=".webp",
+            value_roi=None,
+            value_ca=None,
+            min_array_val=0,
+            cbar_digits=1,
+        )
+
+        kpi_elements_generation_params.append(MSA_LU_animals_params)
 
         ### MSA_LU_plants
 
-        try:
-            kpi_elements_generation(
-                roi_id=roi["id"],
-                ca_id=ca["id"],
-                kpi="msa_lu_plants",
-                result_values=result_values,
-                image_all=None,
-                mask_roi=mask_roi_field,
-                mask_ca=mask_ca,
-                ref_array=None,
-                report_palette=linear_gradient(PALETTE_BLACK_RED_GREEN, n=256)[::-1],
-                units="N",
-                palette_min=0,
-                palette_max=1,
-                clc_values_roi=clc_values_roi,
-                clc_values_ca=clc_values_ca,
-                speed_factor=1,
-                max_val=255,
-                palette=PALETTE_BLACK_RED_GREEN,
-                webp_img=True,
-                webp_report=True,
-                input_image_roi=np_image_roi,
-                input_image_ca=np_image_ca,
-                alignment_point_x=alignment_point_x,
-                alignment_point_y=alignment_point_y,
-                filename="msa_lu_plants",
-                title_report="Mean Species Abundance for Land Use (MSA_LU) - Plants",
-                title_bar="MSA_LU",
-                width_km_ca=width_km_ca,
-                height_km_ca=height_km_ca,
-                width_km_roi=width_km_roi,
-                height_km_roi=height_km_roi,
-                bounding_box_roi=bounding_box_roi,
-                site_pixel_polygons=site_pixel_polygons,
-                filename_report="msa_lu_plants_report",
-                report_ext=".webp",
-                value_roi=None,
-                value_ca=None,
-                min_array_val=0,
-                cbar_digits=1,
-            )
-        except Exception as e:
-            raise e
-        mex = "Created MSA_LU Plants images"
-        print(mex)
+        MSA_LU_plants_params = dict(
+            roi_id=roi["id"],
+            ca_id=ca["id"],
+            kpi="msa_lu_plants",
+            result_values=result_values,
+            image_all=None,
+            mask_roi=mask_roi_field,
+            mask_ca=mask_ca,
+            ref_array=None,
+            report_palette=linear_gradient(PALETTE_BLACK_RED_GREEN, n=256)[::-1],
+            units="N",
+            palette_min=0,
+            palette_max=1,
+            clc_values_roi=clc_values_roi,
+            clc_values_ca=clc_values_ca,
+            speed_factor=1,
+            max_val=255,
+            palette=PALETTE_BLACK_RED_GREEN,
+            webp_img=True,
+            webp_report=True,
+            input_image_roi=np_image_roi,
+            input_image_ca=np_image_ca,
+            alignment_point_x=alignment_point_x,
+            alignment_point_y=alignment_point_y,
+            filename="msa_lu_plants",
+            title_report="Mean Species Abundance for Land Use (MSA_LU) - Plants",
+            title_bar="MSA_LU",
+            width_km_ca=width_km_ca,
+            height_km_ca=height_km_ca,
+            width_km_roi=width_km_roi,
+            height_km_roi=height_km_roi,
+            bounding_box_roi=bounding_box_roi,
+            site_pixel_polygons=site_pixel_polygons,
+            filename_report="msa_lu_plants_report",
+            report_ext=".webp",
+            value_roi=None,
+            value_ca=None,
+            min_array_val=0,
+            cbar_digits=1,
+        )
+
+        kpi_elements_generation_params.append(MSA_LU_plants_params)
+
+        # Run kpi_elements_generation for each parameter in a threadPool
+        print("Running kpi_elements_generation in ThreadPool")
+
+        with ThreadPoolExecutor() as executor:
+            futures = [
+                executor.submit(
+                    kpi_elements_generation,
+                    **params,
+                )
+                for params in kpi_elements_generation_params
+            ]
+            for future in futures:
+                future.result()
 
         # According to parameter 'compute_pa_ns', compute or skip PA and NS
         if compute_pa_ns is True:
@@ -675,7 +676,7 @@ def pollinator_abundance_calculation():
                         ratio_x,
                         ratio_y,
                         min_res,
-                        image_url_fa,
+                        None,  # image_url_fa was None also in the original code
                         NS_COLUMNS,
                         multicore,
                         plantations_polygons_id,
@@ -726,7 +727,13 @@ def pollinator_abundance_calculation():
                     pa_bee_image_n_normalized
                 )
 
-                _ = kpi_elements_generation(
+                ns_images_n_normalized = ns_images[ns] / total_ns_count[ns]  # type: ignore[operator]
+
+                dict_of_results[f"ns_images_n_normalized_{idx}"] = (
+                    ns_images_n_normalized
+                )
+
+                pa_report = dict(
                     roi_id=roi["id"],
                     ca_id=ca["id"],
                     kpi=f"pa_{ns}",
@@ -767,13 +774,7 @@ def pollinator_abundance_calculation():
                     cbar_digits=1,
                 )
 
-                ns_images_n_normalized = ns_images[ns] / total_ns_count[ns]  # type: ignore[operator]
-
-                dict_of_results[f"ns_images_n_normalized_{idx}"] = (
-                    ns_images_n_normalized
-                )
-
-                kpi_elements_generation(
+                ns_report = dict(
                     roi_id=roi["id"],
                     ca_id=ca["id"],
                     kpi=f"ns_{ns}",
@@ -814,6 +815,20 @@ def pollinator_abundance_calculation():
                     cbar_digits=1,
                 )
 
+                with ThreadPoolExecutor() as executor:
+                    futures = [
+                        executor.submit(
+                            kpi_elements_generation,
+                            **pa_report,
+                        ),
+                        executor.submit(
+                            kpi_elements_generation,
+                            **ns_report,
+                        ),
+                    ]
+                    for future in futures:
+                        future.result()
+
                 i += 1
                 mex = f"Creating NS and PA: step {idx + 1}/{total_ns_pa_cycle}"
                 print(mex)
@@ -826,103 +841,105 @@ def pollinator_abundance_calculation():
 
             dict_of_results["pa_image_total_normalized"] = pa_image_total_normalized
 
-            try:
-                kpi_elements_generation(
-                    roi_id=roi["id"],
-                    ca_id=ca["id"],
-                    kpi="pa",
-                    result_values=result_values,
-                    image_all=None,
-                    mask_roi=mask_roi_field,
-                    mask_ca=mask_ca,
-                    ref_array=pa_image_total_normalized,
-                    report_palette=linear_gradient(PALETTE_INPUT, n=256)[::-1],
-                    units="N",
-                    palette_min=0,
-                    palette_max=0.4,
-                    clc_values_roi=None,
-                    clc_values_ca=None,
-                    speed_factor=1,
-                    max_val=255 * 2.5,
-                    palette=PALETTE_INPUT,
-                    webp_img=True,
-                    webp_report=True,
-                    input_image_roi=None,
-                    input_image_ca=None,
-                    alignment_point_x=None,
-                    alignment_point_y=None,
-                    filename="PA_TOTAL.png",
-                    title_report="Pollinator Abundance (PA)",
-                    title_bar="PA",
-                    width_km_ca=width_km_ca,
-                    height_km_ca=height_km_ca,
-                    width_km_roi=width_km_roi,
-                    height_km_roi=height_km_roi,
-                    bounding_box_roi=bounding_box_roi,
-                    site_pixel_polygons=site_pixel_polygons,
-                    filename_report="pa_report",
-                    report_ext=".webp",
-                    value_roi=None,
-                    value_ca=None,
-                    min_array_val=0,
-                    cbar_digits=1,
-                )
-            except Exception as e:
-                raise e
-
-            mex = "Created PA images"
-            print(mex)
-
             ns_image_total_normalized = ns_images_total / total_bee
 
             dict_of_results["ns_image_total_normalized"] = ns_image_total_normalized
 
-            try:
-                kpi_elements_generation(
-                    roi_id=roi["id"],
-                    ca_id=ca["id"],
-                    kpi="ns",
-                    result_values=result_values,
-                    image_all=None,
-                    mask_roi=mask_roi_field,
-                    mask_ca=mask_ca,
-                    ref_array=ns_image_total_normalized,
-                    report_palette=linear_gradient(PALETTE_INPUT, n=256)[::-1],
-                    units="N",
-                    palette_min=0,
-                    palette_max=0.5,
-                    clc_values_roi=None,
-                    clc_values_ca=None,
-                    speed_factor=1,
-                    max_val=255 * 2.5,
-                    palette=PALETTE_INPUT,
-                    webp_img=True,
-                    webp_report=True,
-                    input_image_roi=None,
-                    input_image_ca=None,
-                    alignment_point_x=None,
-                    alignment_point_y=None,
-                    filename="ns_total.png",
-                    title_report="Nesting Suitability (NS)",
-                    title_bar="NS",
-                    width_km_ca=width_km_ca,
-                    height_km_ca=height_km_ca,
-                    width_km_roi=width_km_roi,
-                    height_km_roi=height_km_roi,
-                    bounding_box_roi=bounding_box_roi,
-                    site_pixel_polygons=site_pixel_polygons,
-                    filename_report="ns_report",
-                    report_ext=".webp",
-                    value_roi=None,
-                    value_ca=None,
-                    min_array_val=0,
-                    cbar_digits=1,
-                )
-            except Exception as e:
-                raise e
+            pa_params = dict(
+                roi_id=roi["id"],
+                ca_id=ca["id"],
+                kpi="pa",
+                result_values=result_values,
+                image_all=None,
+                mask_roi=mask_roi_field,
+                mask_ca=mask_ca,
+                ref_array=pa_image_total_normalized,
+                report_palette=linear_gradient(PALETTE_INPUT, n=256)[::-1],
+                units="N",
+                palette_min=0,
+                palette_max=0.4,
+                clc_values_roi=None,
+                clc_values_ca=None,
+                speed_factor=1,
+                max_val=255 * 2.5,
+                palette=PALETTE_INPUT,
+                webp_img=True,
+                webp_report=True,
+                input_image_roi=None,
+                input_image_ca=None,
+                alignment_point_x=None,
+                alignment_point_y=None,
+                filename="PA_TOTAL.png",
+                title_report="Pollinator Abundance (PA)",
+                title_bar="PA",
+                width_km_ca=width_km_ca,
+                height_km_ca=height_km_ca,
+                width_km_roi=width_km_roi,
+                height_km_roi=height_km_roi,
+                bounding_box_roi=bounding_box_roi,
+                site_pixel_polygons=site_pixel_polygons,
+                filename_report="pa_report",
+                report_ext=".webp",
+                value_roi=None,
+                value_ca=None,
+                min_array_val=0,
+                cbar_digits=1,
+            )
 
-            mex = "Created NS images"
-            print(mex)
+            ns_params = dict(
+                roi_id=roi["id"],
+                ca_id=ca["id"],
+                kpi="ns",
+                result_values=result_values,
+                image_all=None,
+                mask_roi=mask_roi_field,
+                mask_ca=mask_ca,
+                ref_array=ns_image_total_normalized,
+                report_palette=linear_gradient(PALETTE_INPUT, n=256)[::-1],
+                units="N",
+                palette_min=0,
+                palette_max=0.5,
+                clc_values_roi=None,
+                clc_values_ca=None,
+                speed_factor=1,
+                max_val=255 * 2.5,
+                palette=PALETTE_INPUT,
+                webp_img=True,
+                webp_report=True,
+                input_image_roi=None,
+                input_image_ca=None,
+                alignment_point_x=None,
+                alignment_point_y=None,
+                filename="ns_total.png",
+                title_report="Nesting Suitability (NS)",
+                title_bar="NS",
+                width_km_ca=width_km_ca,
+                height_km_ca=height_km_ca,
+                width_km_roi=width_km_roi,
+                height_km_roi=height_km_roi,
+                bounding_box_roi=bounding_box_roi,
+                site_pixel_polygons=site_pixel_polygons,
+                filename_report="ns_report",
+                report_ext=".webp",
+                value_roi=None,
+                value_ca=None,
+                min_array_val=0,
+                cbar_digits=1,
+            )
+
+            with ThreadPoolExecutor() as executor:
+                futures = [
+                    executor.submit(
+                        kpi_elements_generation,
+                        **pa_params,
+                    ),
+                    executor.submit(
+                        kpi_elements_generation,
+                        **ns_params,
+                    ),
+                ]
+                for future in futures:
+                    future.result()
 
         dict_of_results["result_values"] = result_values
 
