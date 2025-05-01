@@ -57,3 +57,9 @@ run: venv ## Run the main application script.
 clean: ## Remove the .venv directory.
 	@echo "Removing .venv directory..."
 	@rm -rf .venv
+
+run_tests: ## Run tests using unittest
+	@echo "Running tests using unittest..."
+	@uv run python -m unittest tests/test_pollinator_abundance.py
+	@echo "Tests completed."
+
