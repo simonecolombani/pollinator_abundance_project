@@ -162,7 +162,8 @@ This will delete the `.venv` folder. You will need to run `make venv` again to r
 ### **Overview**
 
 The code is part of a project that calculates Key Performance Indicators related to pollinator abundance and
-suitability within specific geographical areas. It processes input data to generate results and reports for metrics like Pollinator Abundance ,Nesting Suitability and
+suitability within specific geographical areas. It processes input data to generate results and reports for metrics like
+Pollinator Abundance ,Nesting Suitability and
 others.
 
 ---
@@ -339,7 +340,8 @@ To run the server, you can use the following command:
 make run_server
 ```
 
-This will start the server on `http://localhost:8000` and you can access the API documentation at `http://localhost:8000/docs`.
+This will start the server on `http://localhost:8000` and you can access the API documentation at
+`http://localhost:8000/docs`.
 
 ## API Endpoints
 
@@ -360,7 +362,8 @@ to avoids to pass all these parameters in the same request.
 
 ### N.B
 
-Not function parameters are passed by request, for example 'ration_x', 'ratio_y', that are needed for the calculation of
+Not all function parameters are passed by request, for example 'ration_x', 'ratio_y', that are needed for the
+calculation of
 the KPI are not passed but remain hardcoded in the code. This is a limitation of the current implementation example and
 should be fixed in the future.
 
